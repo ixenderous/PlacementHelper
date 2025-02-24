@@ -50,8 +50,6 @@ public class PlacementHelper : BloonsTD6Mod
       
         framesSincePlacementMode = 0;
 
-        MelonLogger.Msg("Settings.squeezeOffset: " + Settings.squeezeOffset.GetValue());
-
         HandleSqueezeInput();
         if (Settings.NudgeModifierHotkey.IsPressed())
         {
