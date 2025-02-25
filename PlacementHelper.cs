@@ -14,6 +14,7 @@ using UnityEngine.InputSystem;
 using PlacementHelper;
 using Il2CppAssets.Scripts.Models.Towers.Behaviors;
 using System.Collections.Generic;
+using Il2CppAssets.Scripts.Models.Map;
 
 [assembly: MelonInfo(typeof(PlacementHelper.PlacementHelper), ModHelperData.Name, ModHelperData.Version, ModHelperData.RepoOwner)]
 [assembly: MelonGame("Ninja Kiwi", "BloonsTD6")]
@@ -32,10 +33,28 @@ public class PlacementHelper : BloonsTD6Mod
         ModHelper.Msg<PlacementHelper>("PlacementHelper loaded!");
     }
 
+    public override void OnNewGameModel(GameModel result, MapModel map)
+    {
+        base.OnNewGameModel(result, map);
+    }
+
+    //public override void OnInGameLoaded(InGame inGame)
+    //{
+    //    base.OnInGameLoaded(inGame);
+
+    //    InGame.instance.sceneCamera.transform.rotation = Quaternion.Euler(90, 0, 0);
+    //    InGame.instance.sceneCamera.orthographicSize = 125;
+    //}
+
     public override void OnUpdate()
     {
         base.OnUpdate();
         if (InGame.instance?.bridge == null) return;
+
+        //if (Settings.logHotkey.JustPressed())
+        //{
+        //    LogMapModel();
+        //}
 
         if (!InGame.instance.InputManager.IsInPlacementMode)
         {
@@ -47,16 +66,29 @@ public class PlacementHelper : BloonsTD6Mod
             }
             return;
         }
-      
+
         framesSincePlacementMode = 0;
 
-        HandleSqueezeInput();
+        if (Settings.SqueezeHotkey.JustPressed())
+        {            
+            HandleSqueezeInput();
+            return;
+        }
+
+        //if (Settings.FindClosestHotkey.JustPressed())
+        //{
+        //    HandleFindClosestInput();
+        //    return;
+        //}
+
         if (Settings.NudgeModifierHotkey.IsPressed())
         {
             if (Settings.invertNudgeModifier) HandleSnapInput();
             else HandleNudgeInput();
+            return;
         }
-        else HandleSnapInput();
+
+        HandleSnapInput();
     }
 
     private static void HandleNudgeInput()
@@ -142,14 +174,30 @@ public class PlacementHelper : BloonsTD6Mod
 
     private static Vector2 FindClosestTangentCircle(Vector2 position, float radius, Tower[] towers)
     {
-        return FindClosestTangentCircle(position.x, position.y, radius + 0.0001f,
-            towers[0].Position.X, towers[0].Position.Y, towers[0].towerModel.radius,
-            towers[1].Position.X, towers[1].Position.Y, towers[1].towerModel.radius);
-    }
+        float x = position.x, y = position.y;
+        float r = radius + 0.0001f;
 
-    private static Vector2 FindClosestTangentCircle(float x, float y, float r, float x1, float y1, float r1, float x2, float y2, float r2)
-    {
+        float x1 = towers[0].Position.X, y1 = towers[0].Position.Y, r1 = towers[0].towerModel.radius;
+        float x2 = towers[1].Position.X, y2 = towers[1].Position.Y, r2 = towers[1].towerModel.radius;
+
         float A = r + r1, B = (float)Distance(x1, y1, x2, y2), C = r + r2;
+
+        // if the two towers are too far apart to squeeze between, place the tower in the middle of the gap
+        if (B > A + C)
+        {
+            // calculate the normalized vector from tower[0] to tower[1]
+            float dx = x2 - x1, dy = y2 - y1;
+            float distance = (float)Math.Sqrt(dx * dx + dy * dy);
+            float ux = dx / distance, uy = dy / distance;
+
+            // calculate the edges of the two towers along this vector
+            Vector2 edge1 = new Vector2(x1 + r1 * ux, y1 + r1 * uy);
+            Vector2 edge2 = new Vector2(x2 - r2 * ux, y2 - r2 * uy);
+
+            // return the midpoint of the gap between the two towers
+            return new Vector2((edge1.x + edge2.x) / 2, (edge1.y + edge2.y) / 2);
+        }
+
         double alpha = Math.Atan2(y2 - y1, x2 - x1);
         double beta = Math.Acos((A * A + B * B - C * C) / (2 * A * B));
 
@@ -162,13 +210,6 @@ public class PlacementHelper : BloonsTD6Mod
     private static double Distance(float x0, float y0, float x1, float y1)
     {
         return Math.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
-    }
-
-    private static bool CanPlace(Vector2 position)
-    {
-        var inputManager = InGame.instance.InputManager;
-        var bridge = InGame.instance.bridge;
-        return bridge.CanPlaceTowerAt(InGame.instance.GetWorldFromPointer(position), inputManager.placementModel, bridge.MyPlayerNumber, inputManager.placementEntityId);
     }
 
     private void ResetSavedValues()
@@ -191,12 +232,77 @@ public class PlacementHelper : BloonsTD6Mod
     private void UnHilightTowers()
     {
         if (highlightedTowers.Count == 0) return;
-        
+
         foreach (var tower in highlightedTowers)
         {
             if (tower != null && !tower.isDestroyed)
-            tower.UnHighlight();
+                tower.UnHighlight();
         }
         highlightedTowers.Clear();
     }
+
+    private static bool CanPlace(Vector2 position)
+    {
+        var inputManager = InGame.instance.InputManager;
+        var bridge = InGame.instance.bridge;
+        return bridge.CanPlaceTowerAt(InGame.instance.GetWorldFromPointer(position), inputManager.placementModel, bridge.MyPlayerNumber, inputManager.placementEntityId);
+    }
+
+    //private void HandleFindClosestInput()
+    //{
+    //    if (!Settings.FindClosestHotkey.JustPressed()) return;
+
+    //    Vector2 currentPos = InputSystemController.MousePosition;
+    //    int attempts = 0;
+    //    int bestDistanceSq = int.MaxValue;
+    //    Vector2? bestPosition = null;
+
+    //    Queue<Vector2Int> queue = new();
+    //    HashSet<Vector2Int> visited = new();
+    //    queue.Enqueue(new Vector2Int(0, 0));
+    //    visited.Add(new Vector2Int(0, 0));
+
+    //    while (attempts < Settings.MaxFindClosestAttempts && queue.Count > 0)
+    //    {
+    //        Vector2Int offset = queue.Dequeue();
+    //        Vector2 testPos = currentPos + (Vector2)offset;
+    //        int distanceSq = offset.x * offset.x + offset.y * offset.y;
+
+    //        if (CanPlace(testPos))
+    //        {
+    //            if (distanceSq < bestDistanceSq)
+    //            {
+    //                bestDistanceSq = distanceSq;
+    //                bestPosition = testPos;
+    //            }
+    //        }
+
+    //        if (distanceSq > bestDistanceSq) continue;
+
+    //        foreach (var dir in new Vector2Int[]
+    //        {
+    //        new(1, 0), new(-1, 0), new(0, 1), new(0, -1)
+    //        })
+    //        {
+    //            Vector2Int nextOffset = offset + dir;
+    //            if (!visited.Contains(nextOffset))
+    //            {
+    //                queue.Enqueue(nextOffset);
+    //                visited.Add(nextOffset);
+    //            }
+    //        }
+
+    //        attempts++;
+    //    }
+
+    //    if (bestPosition.HasValue)
+    //    {
+    //        Mouse.current.WarpCursorPosition(bestPosition.Value);
+    //        MelonLogger.Msg($"Found placement ({bestPosition.Value.x}, {bestPosition.Value.y}) after {attempts} attempts");
+    //    }
+    //    else
+    //    {
+    //        MelonLogger.Msg($"Couldn't find a placement after {attempts} attempts");
+    //    }
+    //}
 }
