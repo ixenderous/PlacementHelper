@@ -71,7 +71,6 @@ public class PlacementHelper : BloonsTD6Mod
             return;
         }
 
-        // Add these new checks
         if (Settings.RotateClockwiseHotkey.JustPressed())
         {
             MelonLogger.Msg("Settings.RotateClockwiseHotkey.JustPressed()");
@@ -86,22 +85,17 @@ public class PlacementHelper : BloonsTD6Mod
             return;
         }
 
-        // Rest of your existing code...
-    }
-
-    private static void HandleNudgeInput()
-    {
-        Vector2 direction = GetDirectionInput();
+        var direction = GetDirectionInput();
         if (direction != Vector2.zero)
         {
-            Mouse.current.WarpCursorPosition(InputSystemController.MousePosition + direction);
+            if (Settings.NudgeModifierHotkey.IsPressed() ^ Settings.invertNudgeModifier)
+            {
+                HandleNudgeInput(direction);
+            } else
+            {
+                HandleSnapInput(direction);
+            }
         }
-    }
-
-    private static void HandleSnapInput()
-    {
-        Vector2 direction = GetDirectionInput();
-        if (direction != Vector2.zero) SnapInDirection(direction);
     }
 
     private static Vector2 GetDirectionInput()
@@ -113,7 +107,12 @@ public class PlacementHelper : BloonsTD6Mod
         return Vector2.zero;
     }
 
-    private static void SnapInDirection(Vector2 direction)
+    private static void HandleNudgeInput(Vector2 direction)
+    {
+        Mouse.current.WarpCursorPosition(InputSystemController.MousePosition + direction);
+    }
+
+    private static void HandleSnapInput(Vector2 direction)
     {
         var currentPos = InputSystemController.MousePosition;
         bool canPlace = CanPlaceAtMouse(currentPos);
