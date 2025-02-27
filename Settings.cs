@@ -6,30 +6,31 @@ namespace PlacementHelper
 {
     public class Settings : ModSettings
     {
-        public static readonly ModSettingCategory directionKeys = new("Direction Keys");
+        public static readonly ModSettingCategory Directions = new("Directions");
+        public static readonly ModSettingCategory Rotation = new("Rotation");
 
         public static readonly ModSettingHotkey UpHotkey = new(KeyCode.UpArrow)
         {
-            description = "Snap the tower upwards to the furthest valid pixel placement. ",
-            category = directionKeys
+            category = Directions,
+            description = "Snap the tower upwards to the furthest valid pixel placement."
         };
 
         public static readonly ModSettingHotkey DownHotkey = new(KeyCode.DownArrow)
         {
-            description = "Snap the tower downwards to the furthest valid pixel placement.",
-            category = directionKeys
+            category = Directions,
+            description = "Snap the tower downwards to the furthest valid pixel placement."
         };
 
         public static readonly ModSettingHotkey LeftHotkey = new(KeyCode.LeftArrow)
         {
-            description = "Snap the tower left to the furthest valid pixel placement.",
-            category = directionKeys
+            category = Directions,
+            description = "Snap the tower left to the furthest valid pixel placement."
         };
 
         public static readonly ModSettingHotkey RightHotkey = new(KeyCode.RightArrow)
         {
-            description = "Snap the tower right to the furthest valid pixel placement.",
-            category = directionKeys
+            category = Directions,
+            description = "Snap the tower right to the furthest valid pixel placement."
         };
 
         public static readonly ModSettingBool invertNudgeModifier = new(false)
@@ -47,23 +48,24 @@ namespace PlacementHelper
             description = "Squeeze a tower between the closest two towers if both are circular. Subpixel."
         };
 
-        //public static readonly ModSettingHotkey FindClosestHotkey = new(KeyCode.RightShift)
-        //{
-        //    description = "Find the closest position the held tower can be placed."
-        //};
+        public static readonly ModSettingHotkey RotateClockwiseHotkey = new(KeyCode.E)
+        {
+            category = Rotation,
+            description = "Rotate the tower clockwise around the closest circular tower."
+        };
 
-        //public static readonly ModSettingInt MaxFindClosestAttempts = new(2500)
-        //{
-        //    description = "The maximum number of pixels to check to find a closest placement."
-        //};
+        public static readonly ModSettingHotkey RotateAnticlockwiseHotkey = new(KeyCode.Q)
+        {
+            category = Rotation,
+            description = "Rotate the tower anti-clockwise around the closest circular tower."
+        };
 
-        // public static readonly ModSettingHotkey logHotkey = new(KeyCode.Backslash);
-
-        //public static readonly ModSettingFloat squeezeOffset = new(0.0001f)
-        //{
-        //    description = "Added to the tower radius when squeezing to fix floating point issues.",
-        //    min = 0f,
-        //    stepSize = 0.000001f
-        //};
+        public static readonly ModSettingInt RotatePrecision = new(360)
+        {
+            category = Rotation,
+            description = "Rotate at an angle of 2 * pi / value. Higher -> more precise placement but may take slightly longer.",
+            min = 360,
+            max = 36000
+        };
     }
 }

@@ -15,6 +15,7 @@ using PlacementHelper;
 using Il2CppAssets.Scripts.Models.Towers.Behaviors;
 using System.Collections.Generic;
 using Il2CppAssets.Scripts.Models.Map;
+using Il2CppAssets.Scripts.Unity;
 
 [assembly: MelonInfo(typeof(PlacementHelper.PlacementHelper), ModHelperData.Name, ModHelperData.Version, ModHelperData.RepoOwner)]
 [assembly: MelonGame("Ninja Kiwi", "BloonsTD6")]
@@ -38,23 +39,18 @@ public class PlacementHelper : BloonsTD6Mod
         base.OnNewGameModel(result, map);
     }
 
-    //public override void OnInGameLoaded(InGame inGame)
-    //{
-    //    base.OnInGameLoaded(inGame);
+    public override void OnInGameLoaded(InGame inGame)
+    {
+        base.OnInGameLoaded(inGame);
 
-    //    InGame.instance.sceneCamera.transform.rotation = Quaternion.Euler(90, 0, 0);
-    //    InGame.instance.sceneCamera.orthographicSize = 125;
-    //}
+        // InGame.instance.sceneCamera.transform.rotation = Quaternion.Euler(90, 0, 0);
+        // InGame.instance.sceneCamera.orthographicSize = 125;
+    }
 
     public override void OnUpdate()
     {
         base.OnUpdate();
         if (InGame.instance?.bridge == null) return;
-
-        //if (Settings.logHotkey.JustPressed())
-        //{
-        //    LogMapModel();
-        //}
 
         if (!InGame.instance.InputManager.IsInPlacementMode)
         {
@@ -70,25 +66,27 @@ public class PlacementHelper : BloonsTD6Mod
         framesSincePlacementMode = 0;
 
         if (Settings.SqueezeHotkey.JustPressed())
-        {            
+        {
             HandleSqueezeInput();
             return;
         }
 
-        //if (Settings.FindClosestHotkey.JustPressed())
-        //{
-        //    HandleFindClosestInput();
-        //    return;
-        //}
-
-        if (Settings.NudgeModifierHotkey.IsPressed())
+        // Add these new checks
+        if (Settings.RotateClockwiseHotkey.JustPressed())
         {
-            if (Settings.invertNudgeModifier) HandleSnapInput();
-            else HandleNudgeInput();
+            MelonLogger.Msg("Settings.RotateClockwiseHotkey.JustPressed()");
+            HandleRotateInput(clockwise: true);
             return;
         }
 
-        HandleSnapInput();
+        if (Settings.RotateAnticlockwiseHotkey.JustPressed())
+        {
+            MelonLogger.Msg("Settings.RotateAnticlockwiseHotkey.JustPressed()");
+            HandleRotateInput(clockwise: false);
+            return;
+        }
+
+        // Rest of your existing code...
     }
 
     private static void HandleNudgeInput()
@@ -118,10 +116,10 @@ public class PlacementHelper : BloonsTD6Mod
     private static void SnapInDirection(Vector2 direction)
     {
         var currentPos = InputSystemController.MousePosition;
-        bool canPlace = CanPlace(currentPos);
+        bool canPlace = CanPlaceAtMouse(currentPos);
         int attempts = 0;
 
-        while (CanPlace(currentPos) == canPlace && attempts++ < 4000)
+        while (CanPlaceAtMouse(currentPos) == canPlace && attempts++ < 4000)
         {
             currentPos += direction;
         }
@@ -156,7 +154,7 @@ public class PlacementHelper : BloonsTD6Mod
         }
 
         var squeezePos = FindClosestTangentCircle(position, placementModel.radius, closestTowers);
-        if (InGame.instance.bridge.CanPlaceTowerAt(squeezePos, placementModel, InGame.instance.bridge.MyPlayerNumber, inputManager.placementEntityId))
+        if (CanPlaceAtWorld(squeezePos))
         {
             savedPosition = squeezePos;
             savedTowerId = placementModel.baseId;
@@ -241,68 +239,117 @@ public class PlacementHelper : BloonsTD6Mod
         highlightedTowers.Clear();
     }
 
-    private static bool CanPlace(Vector2 position)
+    private void HandleRotateInput(bool clockwise)
+    {
+        ResetSavedValues();
+        UnHilightTowers();
+
+        var inputManager = InGame.instance.InputManager;
+        var placementModel = inputManager.placementModel;
+        Vector2 position = inputManager.EntityPositionWorld;
+
+        if (!placementModel.footprint.Is<CircleFootprintModel>())
+        {
+            MelonLogger.Msg("Placement tower is not circular");
+            return;
+        }
+
+        var closestTowers = InGame.instance.GetTowerManager().GetClosestTowers(
+            new Il2CppAssets.Scripts.Simulation.SMath.Vector3Boxed(position.x, position.y, 0f), 1).ToArray();
+
+        if (closestTowers == null || closestTowers.Length == 0)
+        {
+            MelonLogger.Msg("No towers found nearby");
+            return;
+        }
+
+        var closestTower = closestTowers[0];
+
+        if (!closestTower.towerModel.footprint.Is<CircleFootprintModel>())
+        {
+            MelonLogger.Msg($"Closest tower ({closestTower.towerModel.baseId}) is not circular");
+            return;
+        }
+
+        float placementRadius = placementModel.radius;
+        float centerX = closestTower.Position.X;
+        float centerY = closestTower.Position.Y;
+        float centerRadius = closestTower.towerModel.radius;
+
+        float tangentDistance = centerRadius + placementRadius + 0.0001f;
+
+        float currentAngle = (float)Math.Atan2(position.y - centerY, position.x - centerX);
+
+        float rotationAmount = (float)(2 * Math.PI / Settings.RotatePrecision);
+        if (!clockwise) rotationAmount *= -1;
+
+        Vector2 initialPos = new Vector2(
+            centerX + tangentDistance * (float)Math.Cos(currentAngle),
+            centerY + tangentDistance * (float)Math.Sin(currentAngle)
+        );
+        bool initialCanPlace = CanPlaceAtWorld(initialPos);
+
+        float testAngle = currentAngle;
+        Vector2 testPosition = initialPos;
+        int attempts = 0;
+
+        while (attempts++ <= Settings.RotatePrecision)
+        {
+            testAngle += rotationAmount;
+
+            testPosition = new Vector2(
+                centerX + tangentDistance * (float)Math.Cos(testAngle),
+                centerY + tangentDistance * (float)Math.Sin(testAngle)
+            );
+
+            if (CanPlaceAtWorld(testPosition) != initialCanPlace)
+            {
+                if (initialCanPlace)
+                {
+                    testAngle -= rotationAmount;
+                    testPosition = new Vector2(
+                        centerX + tangentDistance * (float)Math.Cos(testAngle),
+                        centerY + tangentDistance * (float)Math.Sin(testAngle)
+                    );
+                }
+                break;
+            }
+        }
+
+        if (CanPlaceAtWorld(testPosition))
+        {
+            savedPosition = testPosition;
+            savedTowerId = placementModel.baseId;
+
+            closestTower.Hilight();
+            highlightedTowers.Add(closestTower);
+
+            // Mouse.current.WarpCursorPosition(WorldToScreen(testPosition));
+        }
+    }
+
+    private static bool CanPlaceAtWorld(Vector2 worldPosition)
     {
         var inputManager = InGame.instance.InputManager;
         var bridge = InGame.instance.bridge;
-        return bridge.CanPlaceTowerAt(InGame.instance.GetWorldFromPointer(position), inputManager.placementModel, bridge.MyPlayerNumber, inputManager.placementEntityId);
+        return bridge.CanPlaceTowerAt(worldPosition, inputManager.placementModel, bridge.MyPlayerNumber, inputManager.placementEntityId);
     }
 
-    //private void HandleFindClosestInput()
+    private static bool CanPlaceAtMouse(Vector2 mousePosition)
+    {
+        var inputManager = InGame.instance.InputManager;
+        var bridge = InGame.instance.bridge;
+        return bridge.CanPlaceTowerAt(InGame.instance.GetWorldFromPointer(mousePosition), inputManager.placementModel, bridge.MyPlayerNumber, inputManager.placementEntityId);
+    }
+
+    // WHY DOESNT THIS WORK
+    //private static Vector2 WorldToScreen(Vector2 worldPosition)
     //{
-    //    if (!Settings.FindClosestHotkey.JustPressed()) return;
+    //    var pos = InGame.instance.sceneCamera.WorldToScreenPoint(worldPosition);
 
-    //    Vector2 currentPos = InputSystemController.MousePosition;
-    //    int attempts = 0;
-    //    int bestDistanceSq = int.MaxValue;
-    //    Vector2? bestPosition = null;
+    //    MelonLogger.Msg($"position: {pos.x}, {pos.y}, {pos.z}");
 
-    //    Queue<Vector2Int> queue = new();
-    //    HashSet<Vector2Int> visited = new();
-    //    queue.Enqueue(new Vector2Int(0, 0));
-    //    visited.Add(new Vector2Int(0, 0));
-
-    //    while (attempts < Settings.MaxFindClosestAttempts && queue.Count > 0)
-    //    {
-    //        Vector2Int offset = queue.Dequeue();
-    //        Vector2 testPos = currentPos + (Vector2)offset;
-    //        int distanceSq = offset.x * offset.x + offset.y * offset.y;
-
-    //        if (CanPlace(testPos))
-    //        {
-    //            if (distanceSq < bestDistanceSq)
-    //            {
-    //                bestDistanceSq = distanceSq;
-    //                bestPosition = testPos;
-    //            }
-    //        }
-
-    //        if (distanceSq > bestDistanceSq) continue;
-
-    //        foreach (var dir in new Vector2Int[]
-    //        {
-    //        new(1, 0), new(-1, 0), new(0, 1), new(0, -1)
-    //        })
-    //        {
-    //            Vector2Int nextOffset = offset + dir;
-    //            if (!visited.Contains(nextOffset))
-    //            {
-    //                queue.Enqueue(nextOffset);
-    //                visited.Add(nextOffset);
-    //            }
-    //        }
-
-    //        attempts++;
-    //    }
-
-    //    if (bestPosition.HasValue)
-    //    {
-    //        Mouse.current.WarpCursorPosition(bestPosition.Value);
-    //        MelonLogger.Msg($"Found placement ({bestPosition.Value.x}, {bestPosition.Value.y}) after {attempts} attempts");
-    //    }
-    //    else
-    //    {
-    //        MelonLogger.Msg($"Couldn't find a placement after {attempts} attempts");
-    //    }
+    //    var backtovectwo = new Vector2(pos.x, Screen.height - pos.y);
+    //    return backtovectwo;
     //}
 }
