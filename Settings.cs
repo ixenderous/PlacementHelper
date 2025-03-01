@@ -60,6 +60,11 @@ namespace PlacementHelper
             description = "Rotate the tower anti-clockwise around the closest circular tower."
         };
 
+        public static readonly ModSettingHotkey PlaceSubpixelTowerHotkey = new(KeyCode.LeftControl)
+        {
+            description = "Place the squeezed or rotated tower subpixel."
+        };
+
         public static readonly ModSettingInt RotatePrecision = new(360)
         {
             category = Rotation,
