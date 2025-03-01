@@ -328,8 +328,6 @@ public class PlacementHelper : BloonsTD6Mod
 
     private static void RefreshShop()
     {
-        MelonLogger.Msg("Refreshing shop for updated hero inventory");
-
         ShopMenu.instance.RebuildTowerSet();
         foreach (var button in ShopMenu.instance.ActiveTowerButtons)
         {
