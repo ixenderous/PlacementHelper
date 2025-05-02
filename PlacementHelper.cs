@@ -14,6 +14,12 @@ using PlacementHelper;
 using Il2CppSystem.IO;
 using Il2CppAssets.Scripts.Unity.UI_New.InGame.RightMenu;
 using Il2CppAssets.Scripts.Unity.UI_New.InGame.StoreMenu;
+using Il2CppAssets.Scripts.Simulation.Objects;
+using Il2CppAssets.Scripts.Models;
+using Il2CppAssets.Scripts.Models.Towers;
+using Il2CppAssets.Scripts.Unity.UI_New.Popups;
+using Il2CppGeom;
+using Il2CppAssets.Scripts.Simulation.Input;
 
 [assembly: MelonInfo(typeof(PlacementHelper.PlacementHelper), ModHelperData.Name, ModHelperData.Version, ModHelperData.RepoOwner)]
 [assembly: MelonGame("Ninja Kiwi", "BloonsTD6")]
@@ -25,6 +31,9 @@ public class PlacementHelper : BloonsTD6Mod
     private Vector2? savedPosition;
     private string savedTowerId = "";
     private readonly List<Tower> highlightedTowers = new();
+    private readonly List<Tower> sacrificers = new();
+    private readonly List<Tower> highlightedSacrificers = new();
+    private readonly List<Tower> highlightedSacrifices = new();
 
     public override void OnApplicationStart()
     {
@@ -36,28 +45,64 @@ public class PlacementHelper : BloonsTD6Mod
         base.OnUpdate();
         if (InGame.instance == null) return;
 
-        if (!InGame.instance.InputManager.IsInPlacementMode || InGame.instance.inputManager.inInstaMode || InGame.instance.inputManager.inPowerMode)
+        var inputManager = InGame.instance.inputManager;
+
+        if (!inputManager.inPlacementMode || inputManager.towerModel == null)
         {
-            UnHilightTowers();
+            UnHilightTowers(highlightedTowers);
+            UnHilightTowers(highlightedSacrificers);
+            UnHilightTowers(highlightedSacrifices);
             ResetSavedValues();
             return;
         }
 
-        if (InGame.instance.inputManager.placementModel.baseId != savedTowerId)
+        if (Settings.HighlightSacrifices)
         {
-            UnHilightTowers();
+            HandleSacrifices();
+        }
+        
+        if (inputManager.inInstaMode || inputManager.inPowerMode || inputManager.placementModel.baseId != savedTowerId)
+        {
+            UnHilightTowers(highlightedTowers);
             ResetSavedValues();
         }
 
-        if (Settings.PlaceSubpixelTowerHotkey.JustPressed())
+        if (PopupScreen.instance.IsPopupActive()) return;
+
+        if (Settings.PlaceTowerHotkey.JustPressed())
         {
             if (savedPosition != null && savedPosition.HasValue)
             {
-                InGame.instance.bridge.CreateTowerAt(new(savedPosition.Value.x, savedPosition.Value.y), InGame.instance.inputManager.placementModel, new Il2CppAssets.Scripts.ObjectId(), InGame.instance.inputManager.inInstaMode, null);
+                InGame.instance.bridge.CreateTowerAt(new(savedPosition.Value.x, savedPosition.Value.y), inputManager.placementModel, new Il2CppAssets.Scripts.ObjectId(), false, null);
                 ResetSavedValues();
                 RefreshShop();
+            } else
+            {
+                inputManager.TryPlace();
             }
         }
+
+        var direction = GetDirectionInput();
+        if (direction != Vector2.zero)
+        {
+            if (Settings.NudgeModifierHotkey.IsPressed() ^ Settings.invertNudgeModifier)
+            {
+                HandleNudgeInput(direction);
+            }
+            else
+            {
+                HandleSnapInDirection(direction);
+            }
+            return;
+        }
+
+        if (Settings.SnapToClosestHotkey.JustPressed())
+        {
+            HandleSnapToClosest();
+            return;
+        }
+
+        if (inputManager.inInstaMode || inputManager.inPowerMode) return;
 
         if (Settings.SqueezeHotkey.JustPressed())
         {
@@ -76,17 +121,41 @@ public class PlacementHelper : BloonsTD6Mod
             HandleRotateInput(clockwise: false);
             return;
         }
+    }
 
-        var direction = GetDirectionInput();
-        if (direction != Vector2.zero)
+    private void HandleSacrifices()
+    {
+        var inputManager = InGame.instance.inputManager;
+
+        var position = inputManager.EntityPositionWorld;
+        foreach (var sacrificer in sacrificers)
         {
-            if (Settings.NudgeModifierHotkey.IsPressed() ^ Settings.invertNudgeModifier)
+            if (Distance(position.x, position.y, sacrificer.Position.X, sacrificer.Position.Y) < sacrificer.towerModel.range)
             {
-                HandleNudgeInput(direction);
+                sacrificer.Hilight();
+                highlightedSacrificers.Add(sacrificer);
             }
             else
             {
-                HandleSnapInput(direction);
+                sacrificer.UnHighlight();
+                highlightedSacrificers.Remove(sacrificer);
+            }
+        }
+
+        if (inputManager.towerModel.baseId == "SuperMonkey")
+        {
+            foreach (var tower in InGame.instance.GetTowers())
+            {
+                if (Distance(position.x, position.y, tower.Position.X, tower.Position.Y) < inputManager.towerModel.range)
+                {
+                    highlightedSacrifices.Add(tower);
+                    tower.Hilight();
+                }
+                else
+                {
+                    highlightedSacrifices.Remove(tower);
+                    tower.UnHighlight();
+                }
             }
         }
     }
@@ -105,7 +174,7 @@ public class PlacementHelper : BloonsTD6Mod
         Mouse.current.WarpCursorPosition(InputSystemController.MousePosition + direction);
     }
 
-    private static void HandleSnapInput(Vector2 direction)
+    private static void HandleSnapInDirection(Vector2 direction)
     {
         var currentPos = InputSystemController.MousePosition;
         bool canPlace = CanPlaceAtMouse(currentPos);
@@ -133,10 +202,38 @@ public class PlacementHelper : BloonsTD6Mod
         Mouse.current.WarpCursorPosition(currentPos);
     }
 
+    private void HandleSnapToClosest()
+    {
+        var currentPos = InputSystemController.MousePosition;
+
+        if (CanPlaceAtMouse(currentPos))
+            return;
+
+        var i = 0;
+        var searchPos = currentPos;
+
+        while (!CanPlaceAtMouse(searchPos))
+        {
+            searchPos = currentPos + Vector2.up.Rotate(i * 10) * i / 10;
+
+            searchPos = new Vector2((int)searchPos.x, (int)searchPos.y);
+
+            if (i++ > 20000)
+            {
+                MelonLogger.Msg("No valid placement spot found nearby");
+                return;
+            }
+        }
+
+        Mouse.current.WarpCursorPosition(searchPos);
+
+        MelonLogger.Msg($"Found valid placement at offset: {searchPos - currentPos}");
+    }
+
     private void HandleSqueezeInput()
     {
         ResetSavedValues();
-        UnHilightTowers();
+        UnHilightTowers(highlightedTowers);
 
         var inputManager = InGame.instance.InputManager;
         var placementModel = inputManager.placementModel;
@@ -177,7 +274,7 @@ public class PlacementHelper : BloonsTD6Mod
     private void HandleRotateInput(bool clockwise)
     {
         ResetSavedValues();
-        UnHilightTowers();
+        UnHilightTowers(highlightedTowers);
 
         var inputManager = InGame.instance.InputManager;
         var placementModel = inputManager.placementModel;
@@ -303,8 +400,20 @@ public class PlacementHelper : BloonsTD6Mod
 
     private static bool CanPlaceAtWorld(Vector2 worldPosition)
     {
+        if (InGame.instance == null)
+            return false;
+
         var inputManager = InGame.instance.InputManager;
+        if (inputManager == null)
+            return false;
+
         var bridge = InGame.instance.bridge;
+        if (bridge == null)
+            return false;
+
+        if (inputManager.placementModel == null)
+            return false;
+
         return bridge.CanPlaceTowerAt(worldPosition, inputManager.placementModel, bridge.MyPlayerNumber, inputManager.placementEntityId);
     }
 
@@ -314,16 +423,14 @@ public class PlacementHelper : BloonsTD6Mod
         savedTowerId = "";
     }
 
-    private void UnHilightTowers()
+    private void UnHilightTowers(List<Tower> towers)
     {
-        if (highlightedTowers.Count == 0) return;
-
-        foreach (var tower in highlightedTowers)
+        foreach (var tower in towers)
         {
             if (tower != null && !tower.isDestroyed)
                 tower.UnHighlight();
         }
-        highlightedTowers.Clear();
+        towers.Clear();
     }
 
     private static void RefreshShop()
@@ -333,5 +440,62 @@ public class PlacementHelper : BloonsTD6Mod
         {
             button.Cast<TowerPurchaseButton>().Update();
         }
+    }
+
+    private static bool isSacrificer(Tower tower)
+    {
+        var model = tower.towerModel;
+        var tiers = model.tiers;
+        return model.baseId == "SuperMonkey" && ((tiers[1] < 3 && tiers[2] == 0) || (tiers[1] == 0 && tiers[2] < 3) && tiers[0] < 5);
+    }
+
+    public override void OnMatchStart()
+    {
+        base.OnMatchStart();
+
+        sacrificers.Clear();
+        foreach (var tower in InGame.instance.GetTowers())
+        {
+            var model = tower.towerModel;
+            if (model.baseId == "SuperMonkey" && model.tiers[1] < 3 && model.tiers[2] < 3)
+            {
+                sacrificers.Add(tower);
+            }
+        }
+    }
+
+    public override void OnTowerDestroyed(Tower tower)
+    {
+        base.OnTowerDestroyed(tower);
+
+        sacrificers.Remove(tower);
+        highlightedSacrifices.Remove(tower);
+    }
+
+    public override void OnTowerCreated(Tower tower, Entity target, Model modelToUse)
+    {
+        base.OnTowerCreated(tower, target, modelToUse);
+
+        if (isSacrificer(tower))
+        {
+            sacrificers.Add(tower);
+        }
+    }
+
+    public override void OnTowerUpgraded(Tower tower, string upgradeName, TowerModel newBaseTowerModel)
+    {
+        base.OnTowerUpgraded(tower, upgradeName, newBaseTowerModel);
+
+        if (tower.towerModel.baseId == "SuperMonkey" && sacrificers.Contains(tower) && !isSacrificer(tower))
+        {
+            sacrificers.Remove(tower);
+        }
+    }
+
+    public override void OnTowerSelected(Tower tower)
+    {
+        base.OnTowerSelected(tower);
+
+        // MelonLogger.Msg($"({tower.Position.X}, {tower.Position.Y}, {tower.Position.Z})");
     }
 }

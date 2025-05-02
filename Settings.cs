@@ -9,6 +9,11 @@ namespace PlacementHelper
         public static readonly ModSettingCategory Directions = new("Directions");
         public static readonly ModSettingCategory Rotation = new("Rotation");
 
+        public static readonly ModSettingHotkey SnapToClosestHotkey = new(KeyCode.Tab)
+        {
+            description = "Snap to the closest valid position."
+        };
+
         public static readonly ModSettingHotkey UpHotkey = new(KeyCode.UpArrow)
         {
             category = Directions,
@@ -60,9 +65,9 @@ namespace PlacementHelper
             description = "Rotate the tower anti-clockwise around the closest circular tower."
         };
 
-        public static readonly ModSettingHotkey PlaceSubpixelTowerHotkey = new(KeyCode.LeftControl)
+        public static readonly ModSettingHotkey PlaceTowerHotkey = new(KeyCode.Return)
         {
-            description = "Place the squeezed or rotated tower subpixel."
+            description = "Places the held tower. Will place the tower at its squeezed or rotated position subpixel if one is ready."
         };
 
         public static readonly ModSettingInt RotatePrecision = new(360)
@@ -71,6 +76,11 @@ namespace PlacementHelper
             description = "Rotate at an angle of 2 * pi / value. Higher -> more precise placement but may take slightly longer.",
             min = 360,
             max = 36000
+        };
+
+        public static readonly ModSettingBool HighlightSacrifices = new(true)
+        {
+            description = "Highlight supers that can sacrifice the held tower, or highlight towers that can be sacrificed by the held super."
         };
     }
 }
