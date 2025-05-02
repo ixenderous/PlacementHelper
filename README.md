@@ -32,7 +32,7 @@
   * Highlights **Super Monkeys** that can sacrifice the held tower.
   * Highlights **towers** that can be sacrificed by the held Super Monkey.
 
-> Subpixel features like squeezing and rotation do **not** currently work with Instamonkeys or Powers.
+Warning: Subpixel features like squeezing and rotation do **not** currently work with Instamonkeys or Powers.
 
 ---
 
