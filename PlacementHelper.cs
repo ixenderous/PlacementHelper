@@ -218,16 +218,10 @@ public class PlacementHelper : BloonsTD6Mod
 
             searchPos = new Vector2((int)searchPos.x, (int)searchPos.y);
 
-            if (i++ > 20000)
-            {
-                MelonLogger.Msg("No valid placement spot found nearby");
-                return;
-            }
+            if (i++ > 20000) return;
         }
 
         Mouse.current.WarpCursorPosition(searchPos);
-
-        MelonLogger.Msg($"Found valid placement at offset: {searchPos - currentPos}");
     }
 
     private void HandleSqueezeInput()
