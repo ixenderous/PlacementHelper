@@ -5,7 +5,7 @@
         <Configurations>Debug;Release</Configurations>
         <Nullable>enable</Nullable>
         <AssemblyName>PlacementHelper</AssemblyName>
-        <LangVersion>latest</LangVersion>
+        <LangVersion>10.0</LangVersion>
         <Optimize>False</Optimize>
         <DebugType>embedded</DebugType>
     </PropertyGroup>
