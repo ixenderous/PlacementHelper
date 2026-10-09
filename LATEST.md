@@ -1,1 +1,1 @@
-- added axis align feature
+- minor fixes for v57

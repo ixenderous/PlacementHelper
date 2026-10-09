@@ -2,8 +2,8 @@ namespace PlacementHelper;
 
 public static class ModHelperData
 {
-    public const string WorksOnVersion = "55.1";
-    public const string Version = "0.1.0";
+    public const string WorksOnVersion = "57.0";
+    public const string Version = "0.1.1";
     public const string Name = "PlacementHelper";
 
     public const string Description =

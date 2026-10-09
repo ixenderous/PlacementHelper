@@ -27,7 +27,7 @@ namespace PlacementHelper;
 
 public class PlacementHelper : BloonsTD6Mod
 {
-    private bool isInGame = false;
+    private bool isInGame;
     
     private Vector2? savedPosition;
     private string savedTowerId = "";
@@ -73,9 +73,9 @@ public class PlacementHelper : BloonsTD6Mod
         
         if (Settings.PlaceTowerHotkey.JustPressed())
         {
-            if (savedPosition != null && savedPosition.HasValue)
+            if (savedPosition is not null)
             {
-                InGame.instance.bridge.CreateTowerAt(new(savedPosition.Value.x, savedPosition.Value.y), inputManager.placementModel, new Il2CppAssets.Scripts.ObjectId(), false, null);
+                InGame.instance.bridge.CreateTowerAt(inputManager.InputId, new Vector2(savedPosition.Value.x, savedPosition.Value.y), inputManager.placementModel, new Il2CppAssets.Scripts.ObjectId(), false, null);
                 ResetSavedValues();
                 RefreshShop();
             } else
@@ -127,7 +127,6 @@ public class PlacementHelper : BloonsTD6Mod
         if (Settings.RotateAnticlockwiseHotkey.JustPressed())
         {
             HandleRotateInput(clockwise: false);
-            return;
         }
     }
 
@@ -185,14 +184,14 @@ public class PlacementHelper : BloonsTD6Mod
     private static void HandleSnapInDirection(Vector2 direction)
     {
         var currentPos = InputSystemController.MousePosition;
-        bool canPlace = CanPlaceAtMouse(currentPos);
+        var canPlace = CanPlaceAtMouse(currentPos);
 
         float maxX = Screen.width;
         float maxY = Screen.height;
 
         while (CanPlaceAtMouse(currentPos) == canPlace)
         {
-            Vector2 nextPos = currentPos + direction;
+            var nextPos = currentPos + direction;
 
             if (nextPos.x < 0 || nextPos.x >= maxX || nextPos.y < 0 || nextPos.y >= maxY)
             {
@@ -239,14 +238,14 @@ public class PlacementHelper : BloonsTD6Mod
 
         var inputManager = InGame.instance.InputManagers.First();
         var placementModel = inputManager.placementModel;
-        Vector2 position = inputManager.EntityPositionWorld;
+        var position = inputManager.EntityPositionWorld;
 
         var closestTowers = InGame.instance.GetTowerManager().GetClosestTowers(
             new Vector3Boxed(position.x, position.y, 0f), 2).ToArray();
 
         if (closestTowers.Length != 2)
         {
-            ModHelper.Msg<PlacementHelper>("Could not find 2 towers to squeeze inbetween");
+            ModHelper.Msg<PlacementHelper>("Could not find 2 towers to squeeze in between");
             return;
         }
 
@@ -283,7 +282,7 @@ public class PlacementHelper : BloonsTD6Mod
         Vector2 position = inputManager.EntityPositionWorld;
 
         var closestTowers = InGame.instance.GetTowerManager().GetClosestTowers(
-            new Vector3Boxed(position.x, position.y, 0f), 1).ToArray();
+            new Vector3Boxed(position.x, position.y), 1).ToArray();
 
         if (closestTowers.Length != 1)
         {
@@ -466,7 +465,7 @@ public class PlacementHelper : BloonsTD6Mod
         if (inputManager.placementModel == null)
             return false;
 
-        return bridge.CanPlaceTowerAt(worldPosition, inputManager.placementModel, bridge.MyPlayerNumber, inputManager.placementEntityId);
+        return bridge.CanPlaceTowerAt(worldPosition, inputManager.placementModel, inputManager.InputId, inputManager.placementEntityId);
     }
 
     private void ResetSavedValues()
@@ -475,11 +474,11 @@ public class PlacementHelper : BloonsTD6Mod
         savedTowerId = "";
     }
 
-    private void UnHilightTowers(List<Tower> towers)
+    private static void UnHilightTowers(List<Tower> towers)
     {
         foreach (var tower in towers)
         {
-            if (tower != null && !tower.isDestroyed)
+            if (tower is { isDestroyed: false })
                 tower.UnHighlight();
         }
         towers.Clear();
@@ -561,10 +560,10 @@ public class PlacementHelper : BloonsTD6Mod
     }
 
     /// Returns the cardinal direction (up/down/left/right) from point 0 to point 1.
-    public static Vector2 GetDominantDirection(float x0, float y0, float x1, float y1)
+    private static Vector2 GetDominantDirection(float x0, float y0, float x1, float y1)
     {
-        float dx = x1 - x0;
-        float dy = y1 - y0;
+        var dx = x1 - x0;
+        var dy = y1 - y0;
 
         // Pick whichever axis has the larger displacement
         if (Mathf.Abs(dx) >= Mathf.Abs(dy))
